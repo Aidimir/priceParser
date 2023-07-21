@@ -1,0 +1,7 @@
+requests
+selenium
+bs4
+lxml
+sqlalchemy
+uvicorn==0.22.0
+fastapi==0.95.2
