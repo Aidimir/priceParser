@@ -1,46 +1,10 @@
 import requests
 from bs4 import BeautifulSoup as bs
-from db import add_to_db, Price
+from db import add_to_db, remove_by_id, fetch_from_db, Price
 from fastapi import FastAPI, UploadFile, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-import json
-from sqlalchemy.ext.declarative import DeclarativeMeta
-from uuid import UUID
-
-class OutputMixin(object):
-    RELATIONSHIPS_TO_DICT = False
-
-    def __iter__(self):
-        return self.to_dict().iteritems()
-
-    def to_dict(self, rel=None, backref=None):
-        if rel is None:
-            rel = self.RELATIONSHIPS_TO_DICT
-        res = {column.key: getattr(self, attr)
-               for attr, column in self.__mapper__.c.items()}
-        if rel:
-            for attr, relation in self.__mapper__.relationships.items():
-                # Avoid recursive loop between to tables.
-                if backref == relation.table:
-                    continue
-                value = getattr(self, attr)
-                if value is None:
-                    res[relation.key] = None
-                elif isinstance(value.__class__, DeclarativeMeta):
-                    res[relation.key] = value.to_dict(backref=self.__table__)
-                else:
-                    res[relation.key] = [i.to_dict(backref=self.__table__)
-                                         for i in value]
-        return res
-
-    def to_json(self, rel=None):
-        def extended_encoder(x):
-            if isinstance(x, UUID):
-                return str(x)
-        if rel is None:
-            rel = self.RELATIONSHIPS_TO_DICT
-        return json.dumps(self.to_dict(rel), default=extended_encoder)
-
+import threading
+from typing import List
 
 PRODUCT_URL = "https://www.1sm.ru/catalog/komplektuyushchie/videokarty/"
 
@@ -82,8 +46,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/fetch", tags=["fetch"])
+def update_storage():
+    threading.Timer(interval=3600.0, function=update_storage).start()
+    update_db()
+
+
+@app.get("/fetch", tags=["fetch"])
 async def fetch():
+    items = fetch_from_db()
+    return items
+
+
+async def update_db():
     try:
         # requests solution
         page = requests.get(url=PRODUCT_URL)
@@ -110,3 +84,30 @@ async def fetch():
         return products
     except:
         raise HTTPException(status_code=400, detail="Couldn't fetch any data")
+
+@app.post("/add")
+async def add(title: str, price: int, code: int):
+    try:
+        form = Price(id=code, name=title, price=price)
+        add_to_db(form)
+    except:
+        raise HTTPException(status_code=400, detail="Couldn't fetch any data")
+
+@app.delete("/delete")
+async def delete(id: int):
+    try:
+        remove_by_id(id)
+        return fetch_from_db()
+    except:
+        raise HTTPException(status_code=400, detail="Couldn't fetch any data")
+
+
+@app.put("/update")
+async def update(title: str, price: int, code: int):
+    try:
+        form = Price(id=code, name=title, price=price)
+        add_to_db(form)
+    except:
+        raise HTTPException(status_code=400, detail="Couldn't fetch any data")
+
+update_storage()

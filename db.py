@@ -1,4 +1,3 @@
-import sqlalchemy
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, Session
 
@@ -24,9 +23,15 @@ def remove_from_db(item):
     session.delete(item)
     session.commit()
 
-def add_to_db(item):
-    obj = session.query(Price).filter_by(id=item.id).scalar()
+def remove_by_id(id):
+    obj = session.query(Price).filter_by(id=id).scalar()
     if obj is not None:
         remove_from_db(obj)
+
+def add_to_db(item):
+    remove_by_id(item.id)
     session.add(item)
     session.commit()
+
+def fetch_from_db() -> [Price]:
+    return session.query(Price).all()
